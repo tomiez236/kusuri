@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服薬管理カレンダー - 4週間サイクル</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif, system-ui;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col justify-between p-3 sm:p-6">
+
+    <div class="max-w-xl mx-auto w-full bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 mb-6">
+        <!-- ヘッダー -->
+        <div class="bg-gradient-to-r from-teal-500 to-emerald-600 p-6 text-white">
+            <div class="flex justify-between items-center mb-4">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="pill" class="w-8 h-8"></i>
+                    <h1 class="text-xl sm:text-2xl font-bold">服薬管理カレンダー</h1>
+                </div>
+                <button id="settingsBtn" class="p-2 hover:bg-white/10 rounded-full transition-colors" title="設定">
+                    <i data-lucide="settings" class="w-6 h-6"></i>
+                </button>
+            </div>
+            
+            <!-- サイクル切り替えナビゲーション -->
+            <div class="flex items-center justify-between bg-white/10 backdrop-blur-md rounded-2xl p-3">
+                <button id="prevCycle" class="p-2 hover:bg-white/20 rounded-xl transition-colors text-white">
+                    <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                </button>
+                <div class="text-center">
+                    <span id="cycleTitle" class="text-xs font-medium text-teal-100 uppercase tracking-wider block">現在のサイクル</span>
+                    <span id="cycleDates" class="text-sm sm:text-base font-bold">---</span>
+                </div>
+                <button id="nextCycle" class="p-2 hover:bg-white/20 rounded-xl transition-colors text-white">
+                    <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- アラート / 通知ステータスバー -->
+        <div id="reminderBar" class="bg-amber-50 border-b border-amber-100 px-6 py-3 flex items-center justify-between text-amber-800 text-xs sm:text-sm">
+            <div class="flex items-center gap-2">
+                <i data-lucide="clock" class="w-4 h-4 text-amber-600"></i>
+                <span>毎日 <strong id="displayTime">20:00</strong> に服薬リマインド</span>
+            </div>
+            <button id="testAlarmBtn" class="text-amber-700 font-semibold underline hover:text-amber-900">確認テスト</button>
+        </div>
+
+        <!-- 達成率メーター -->
+        <div class="p-6 pb-2">
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">服薬達成率 (実薬期間)</span>
+                <span id="progressPercent" class="text-sm font-bold text-teal-600">0%</span>
+            </div>
+            <div class="w-full bg-slate-100 rounded-full h-3 overflow-hidden">
+                <div id="progressBar" class="bg-teal-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 凡例 (ステータス説明) -->
+        <div class="px-6 py-2 flex items-center justify-center gap-3 sm:gap-4 text-xs text-slate-600 flex-wrap">
+            <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-emerald-500 inline-block"></span>
+                <span>服用済み</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-rose-400 inline-block"></span>
+                <span>スキップ</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-slate-200 inline-block"></span>
+                <span>未服用</span>
+            </div>
+            <div class="flex items-center gap-1.5">
+                <span class="w-3 h-3 rounded-full bg-indigo-100 border border-indigo-300 inline-block"></span>
+                <span>休薬期間(4週目)</span>
+            </div>
+        </div>
+
+        <!-- 金曜始まりカレンダー（4週間/28日間） -->
+        <div class="p-6 pt-2">
+            <div class="grid grid-cols-7 gap-1 sm:gap-2 mb-2 text-center text-xs font-bold text-slate-400">
+                <div class="text-teal-600">金</div>
+                <div>土</div>
+                <div class="text-rose-500">日</div>
+                <div>月</div>
+                <div>火</div>
+                <div>水</div>
+                <div>木</div>
+            </div>
+            <div id="calendarGrid" class="grid grid-cols-7 gap-1.5 sm:gap-2"></div>
+        </div>
+
+        <!-- 下部アクションバー -->
+        <div class="px-6 pb-6 pt-2 flex gap-3">
+            <button id="todayQuickBtn" class="flex-1 bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 rounded-2xl shadow-lg shadow-teal-600/20 transition-all flex items-center justify-center gap-2 text-sm sm:text-base">
+                <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+                <span>本日の服薬を記録</span>
+            </button>
+            <button id="resetCycleBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-600 font-medium px-4 py-3 rounded-2xl transition-colors text-sm" title="このサイクルの記録をリセット">
+                <i data-lucide="rotate-ccw" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 設定モーダル -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-6">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-4">
+                <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i data-lucide="sliders" class="w-5 h-5 text-teal-600"></i>
+                    設定
+                </h3>
+                <button id="closeSettingsBtn" class="text-slate-400 hover:text-slate-600">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">現在のサイクルの開始金曜日</label>
+                    <input type="date" id="cycleStartDateInput" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                    <p class="text-xs text-slate-400 mt-1">※基準となる金曜日を選択してください</p>
+                </div>
+
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <div>
+                            <span class="text-sm font-medium text-slate-700 block">4週目を休薬期間に設定</span>
+                            <span class="text-xs text-slate-400">3週間服用後、1週間休薬するスケジュール</span>
+                        </div>
+                        <input type="checkbox" id="restWeekToggle" checked class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 relative"></div>
+                    </label>
+                </div>
+
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-1">服薬通知時刻</label>
+                    <input type="time" id="reminderTimeInput" value="20:00" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-teal-500">
+                </div>
+
+                <div class="pt-2 border-t border-slate-100">
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-sm font-medium text-slate-700">ブラウザ通知を許可</span>
+                        <input type="checkbox" id="notificationToggle" class="sr-only peer">
+                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600 relative"></div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="pt-2">
+                <button id="saveSettingsBtn" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-medium py-3 rounded-xl shadow-md transition-colors text-sm">
+                    設定を保存する
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- カスタム通知ポップアップ -->
+    <div id="toastNotification" class="fixed top-4 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-2xl border border-slate-700 flex items-center gap-3 transition-all duration-300 transform -translate-y-20 opacity-0 z-50 pointer-events-none">
+        <i data-lucide="bell" class="w-5 h-5 text-teal-400"></i>
+        <span id="toastMessage" class="text-sm font-medium"></span>
+    </div>
+
+    <script>
+        let currentCycleOffset = 0;
+        let baseStartDate = null;
+        let reminderTime = "20:00";
+        let hasRestWeek = true;
+        let records = {};
+
+        window.onload = function() {
+            lucide.createIcons();
+            loadStoredData();
+            initCycleStartDate();
+            renderCalendar();
+            setupEventListeners();
+            startReminderTimer();
+        };
+
+        function loadStoredData() {
+            const savedRecords = localStorage.getItem('medication_records');
+            if (savedRecords) records = JSON.parse(savedRecords);
+
+            const savedTime = localStorage.getItem('medication_time');
+            if (savedTime) reminderTime = savedTime;
+
+            const savedStartDate = localStorage.getItem('medication_base_start');
+            if (savedStartDate) baseStartDate = new Date(savedStartDate);
+
+            const savedRestWeek = localStorage.getItem('medication_has_rest_week');
+            if (savedRestWeek !== null) hasRestWeek = savedRestWeek === 'true';
+
+            document.getElementById('displayTime').textContent = reminderTime;
+            document.getElementById('reminderTimeInput').value = reminderTime;
+            document.getElementById('restWeekToggle').checked = hasRestWeek;
+        }
+
+        function initCycleStartDate() {
+            if (!baseStartDate) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const dayOfWeek = today.getDay();
+                let diffToFriday = dayOfWeek >= 5 ? dayOfWeek - 5 : dayOfWeek + 2;
+                const lastFriday = new Date(today);
+                lastFriday.setDate(today.getDate() - diffToFriday);
+                baseStartDate = lastFriday;
+                saveBaseStartDate();
+            }
+        }
+
+        function saveBaseStartDate() {
+            localStorage.setItem('medication_base_start', baseStartDate.toISOString());
+        }
+
+        function getDisplayedCycleStartDate() {
+            const date = new Date(baseStartDate);
+            date.setDate(date.getDate() + (currentCycleOffset * 28));
+            return date;
+        }
+
+        function formatDateKey(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            grid.innerHTML = '';
+
+            const cycleStart = getDisplayedCycleStartDate();
+            const cycleEnd = new Date(cycleStart);
+            cycleEnd.setDate(cycleEnd.getDate() + 27);
+
+            const startStr = `${cycleStart.getFullYear()}年${cycleStart.getMonth() + 1}月${cycleStart.getDate()}日`;
+            const endStr = `${cycleEnd.getFullYear()}年${cycleEnd.getMonth() + 1}月${cycleEnd.getDate()}日`;
+            document.getElementById('cycleDates').textContent = `${startStr} 〜 ${endStr}`;
+            
+            const titleElem = document.getElementById('cycleTitle');
+            if (currentCycleOffset === 0) {
+                titleElem.textContent = "現在のサイクル (4週間)";
+            } else if (currentCycleOffset < 0) {
+                titleElem.textContent = `${Math.abs(currentCycleOffset)}サイクル前の記録`;
+            } else {
+                titleElem.textContent = `${currentCycleOffset}サイクル後の予定`;
+            }
+
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            const todayStr = formatDateKey(today);
+
+            let takenCount = 0;
+            const targetDaysCount = hasRestWeek ? 21 : 28;
+
+            for (let i = 0; i < 28; i++) {
+                const currentDate = new Date(cycleStart);
+                currentDate.setDate(cycleStart.getDate() + i);
+                const dateKey = formatDateKey(currentDate);
+                const status = records[dateKey] || 'none';
+                const isRestDay = hasRestWeek && (i >= 21);
+
+                if (!isRestDay && status === 'taken') takenCount++;
+
+                const isToday = dateKey === todayStr;
+                const cell = document.createElement('button');
+                cell.className = `relative flex flex-col items-center justify-between p-2 rounded-2xl aspect-square border transition-all duration-200 select-none ${getCellStyle(status, isToday, isRestDay)}`;
+                
+                const dayNum = document.createElement('span');
+                dayNum.className = `text-sm sm:text-base font-bold ${isRestDay ? 'text-indigo-400' : (isToday ? 'text-teal-600' : 'text-slate-700')}`;
+                dayNum.textContent = currentDate.getDate();
+
+                if (currentDate.getDate() === 1 || i === 0) {
+                    const monthLabel = document.createElement('span');
+                    monthLabel.className = 'text-[10px] font-semibold text-slate-400 leading-none';
+                    monthLabel.textContent = `${currentDate.getMonth() + 1}月`;
+                    cell.appendChild(monthLabel);
+                } else {
+                    cell.appendChild(document.createElement('div'));
+                }
+
+                cell.appendChild(dayNum);
+
+                const statusIcon = document.createElement('div');
+                statusIcon.className = 'w-5 h-5 flex items-center justify-center rounded-full';
+                
+                if (isRestDay) {
+                    statusIcon.innerHTML = `<i data-lucide="minus" class="w-4 h-4 text-indigo-400"></i>`;
+                } else if (status === 'taken') {
+                    statusIcon.innerHTML = `<i data-lucide="check" class="w-4 h-4 text-white"></i>`;
+                } else if (status === 'skipped') {
+                    statusIcon.innerHTML = `<i data-lucide="x" class="w-3.5 h-3.5 text-white"></i>`;
+                } else {
+                    statusIcon.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-slate-300"></span>`;
+                }
+                cell.appendChild(statusIcon);
+
+                if (isToday) {
+                    const todayBadge = document.createElement('span');
+                    todayBadge.className = 'absolute -top-1 -right-1 bg-teal-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full shadow-sm';
+                    todayBadge.textContent = '今日';
+                    cell.appendChild(todayBadge);
+                } else if (isRestDay && i === 21) {
+                    const restBadge = document.createElement('span');
+                    restBadge.className = 'absolute -top-1 -right-1 bg-indigo-100 text-indigo-700 border border-indigo-200 text-[8px] font-bold px-1 py-0.2 rounded';
+                    restBadge.textContent = '休薬週';
+                    cell.appendChild(restBadge);
+                }
+
+                if (!isRestDay) {
+                    cell.onclick = () => toggleStatus(dateKey);
+                } else {
+                    cell.onclick = () => showToast("本日は休薬期間のためチェック不要です");
+                }
+
+                grid.appendChild(cell);
+            }
+
+            const percent = Math.min(100, Math.round((takenCount / targetDaysCount) * 100));
+            document.getElementById('progressBar').style.width = `${percent}%`;
+            document.getElementById('progressPercent').textContent = `${percent}% (${takenCount}/${targetDaysCount}日)`;
+
+            const todayCycleDayIndex = Math.floor((today - cycleStart) / (1000 * 60 * 60 * 24));
+            const isTodayRestDay = hasRestWeek && (todayCycleDayIndex >= 21 && todayCycleDayIndex < 28);
+            const quickBtn = document.getElementById('todayQuickBtn');
+            if (isTodayRestDay) {
+                quickBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                quickBtn.onclick = () => showToast("本日は休薬期間です");
+            } else {
+                quickBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                quickBtn.onclick = handleTodayQuickRecord;
+            }
+
+            lucide.createIcons();
+        }
+
+        function getCellStyle(status, isToday, isRestDay) {
+            if (isRestDay) return 'bg-indigo-50/50 border-indigo-100/80 text-slate-400 cursor-default';
+            let base = isToday ? 'ring-2 ring-teal-500 ring-offset-2 ' : '';
+            switch (status) {
+                case 'taken': return base + 'bg-emerald-500 text-white border-emerald-600 shadow-md shadow-emerald-500/20 hover:bg-emerald-600';
+                case 'skipped': return base + 'bg-rose-400 text-white border-rose-500 hover:bg-rose-500';
+                default: return base + 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200';
+            }
+        }
+
+        function toggleStatus(dateKey) {
+            const current = records[dateKey] || 'none';
+            let next = 'taken';
+            if (current === 'taken') next = 'skipped';
+            else if (current === 'skipped') next = 'none';
+
+            if (next === 'none') delete records[dateKey];
+            else records[dateKey] = next;
+
+            localStorage.setItem('medication_records', JSON.stringify(records));
+            renderCalendar();
+        }
+
+        function handleTodayQuickRecord() {
+            const todayStr = formatDateKey(new Date());
+            records[todayStr] = 'taken';
+            localStorage.setItem('medication_records', JSON.stringify(records));
+            currentCycleOffset = 0;
+            renderCalendar();
+            showToast("本日の服薬を記録しました！");
+        }
+
+        function setupEventListeners() {
+            document.getElementById('prevCycle').onclick = () => { currentCycleOffset--; renderCalendar(); };
+            document.getElementById('nextCycle').onclick = () => { currentCycleOffset++; renderCalendar(); };
+
+            document.getElementById('resetCycleBtn').onclick = () => {
+                if (confirm('このサイクルの記録をクリアしますか？')) {
+                    const cycleStart = getDisplayedCycleStartDate();
+                    for (let i = 0; i < 28; i++) {
+                        const d = new Date(cycleStart);
+                        d.setDate(cycleStart.getDate() + i);
+                        delete records[formatDateKey(d)];
+                    }
+                    localStorage.setItem('medication_records', JSON.stringify(records));
+                    renderCalendar();
+                    showToast("このサイクルの記録をリセットしました");
+                }
+            };
+
+            const modal = document.getElementById('settingsModal');
+            document.getElementById('settingsBtn').onclick = () => {
+                const cycleStart = getDisplayedCycleStartDate();
+                document.getElementById('cycleStartDateInput').value = formatDateKey(cycleStart);
+                document.getElementById('restWeekToggle').checked = hasRestWeek;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            };
+
+            document.getElementById('closeSettingsBtn').onclick = closeModal;
+
+            document.getElementById('saveSettingsBtn').onclick = () => {
+                const newTime = document.getElementById('reminderTimeInput').value;
+                if (newTime) {
+                    reminderTime = newTime;
+                    localStorage.setItem('medication_time', reminderTime);
+                    document.getElementById('displayTime').textContent = reminderTime;
+                }
+
+                hasRestWeek = document.getElementById('restWeekToggle').checked;
+                localStorage.setItem('medication_has_rest_week', hasRestWeek);
+
+                const newDateVal = document.getElementById('cycleStartDateInput').value;
+                if (newDateVal) {
+                    const selectedDate = new Date(newDateVal);
+                    const day = selectedDate.getDay();
+                    const diffToFriday = day >= 5 ? day - 5 : day + 2;
+                    selectedDate.setDate(selectedDate.getDate() - diffToFriday);
+
+                    baseStartDate = selectedDate;
+                    currentCycleOffset = 0;
+                    saveBaseStartDate();
+                }
+
+                closeModal();
+                renderCalendar();
+                showToast("設定を保存しました");
+            };
+
+            document.getElementById('notificationToggle').onclick = (e) => {
+                if (e.target.checked && Notification.permission !== 'granted') {
+                    Notification.requestPermission().then(permission => {
+                        if (permission !== 'granted') {
+                            e.target.checked = false;
+                            alert('通知許可が得られませんでした。');
+                        }
+                    });
+                }
+            };
+
+            document.getElementById('testAlarmBtn').onclick = () => { triggerMedicationAlert(); };
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('settingsModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function showToast(message) {
+            const toast = document.getElementById('toastNotification');
+            const toastMsg = document.getElementById('toastMessage');
+            toastMsg.textContent = message;
+            toast.classList.remove('-translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        function startReminderTimer() {
+            setInterval(() => {
+                const now = new Date();
+                const currentFormatted = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                
+                if (currentFormatted === reminderTime && now.getSeconds() === 0) {
+                    const cycleStart = getDisplayedCycleStartDate();
+                    const todayCycleDayIndex = Math.floor((now - cycleStart) / (1000 * 60 * 60 * 24));
+                    const isTodayRestDay = hasRestWeek && (todayCycleDayIndex >= 21 && todayCycleDayIndex < 28);
+
+                    if (!isTodayRestDay) {
+                        const todayStr = formatDateKey(now);
+                        if (records[todayStr] !== 'taken') {
+                            triggerMedicationAlert();
+                        }
+                    }
+                }
+            }, 1000);
+        }
+
+        function triggerMedicationAlert() {
+            showToast("お薬を飲む時間です！確認してください。");
+            if (Notification.permission === 'granted') {
+                new Notification('服薬リマインダー', {
+                    body: '決まった時間になりました。お薬を服用してください。',
+                    icon: 'https://cdn-icons-png.flaticon.com/512/883/883407.png'
+                });
+            }
+        }
+    </script>
+</body>
+</html>
